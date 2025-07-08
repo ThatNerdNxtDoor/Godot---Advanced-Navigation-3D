@@ -1,10 +1,18 @@
-[gd_scene load_steps=9 format=3 uid="uid://bithl5vw36kpt"]
+[gd_scene load_steps=13 format=3 uid="uid://bithl5vw36kpt"]
 
 [ext_resource type="Script" uid="uid://ch7gl37k4tr6d" path="res://addons/AdvActorNavigation/AdvActor.gd" id="1_dbkhw"]
+[ext_resource type="Script" uid="uid://4n5glc0keuea" path="res://player.gd" id="1_y61ny"]
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_y61ny"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_fgfqk"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_dbkhw"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_y61ny"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_dbkhw"]
+radius = 4.61786
 
 [sub_resource type="BoxMesh" id="BoxMesh_dbkhw"]
 size = Vector3(50, 0.2, 50)
@@ -28,19 +36,29 @@ polygons = [PackedInt32Array(0, 1, 27), PackedInt32Array(1, 28, 27), PackedInt32
 
 [node name="Node3D" type="Node3D"]
 
-[node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0.859986, 0.510318, 0, -0.510318, 0.859986, 0, 6.89992, 24.4211)
+[node name="Player" type="CharacterBody3D" parent="." node_paths=PackedStringArray("camera")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.17725, 18.7465)
+collision_layer = 3
+script = ExtResource("1_y61ny")
+camera = NodePath("Camera3D")
 
-[node name="Actor" type="CharacterBody3D" parent="." node_paths=PackedStringArray("nav_agent", "nav_timer")]
+[node name="Camera3D" type="Camera3D" parent="Player"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.628822, -0.538876)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Player"]
+mesh = SubResource("CapsuleMesh_y61ny")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Player"]
+shape = SubResource("CapsuleShape3D_fgfqk")
+
+[node name="Actor" type="CharacterBody3D" parent="." node_paths=PackedStringArray("nav_agent", "nav_timer", "aggro_area")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2336, 0)
 script = ExtResource("1_dbkhw")
 nav_behavior = 3
 nav_agent = NodePath("NavigationAgent3D")
 nav_timer = NodePath("Timer")
-nav_time = 5.0
-movement_speed = 3.0
 patrol_route = Array[Vector3]([Vector3(10, 0, 0), Vector3(10, 0, 10), Vector3(0, 0, 10), Vector3(-10, 0, 10), Vector3(-10, 0, 0), Vector3(-10, 0, -10), Vector3(0, 0, -10), Vector3(10, 0, -10)])
-wander_range = 20.0
+aggro_area = NodePath("Aggro")
 
 [node name="Timer" type="Timer" parent="Actor"]
 one_shot = true
@@ -57,6 +75,13 @@ shape = SubResource("CapsuleShape3D_y61ny")
 [node name="RayCast3D" type="RayCast3D" parent="Actor"]
 transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, 0, 0, 0)
 target_position = Vector3(2, 0, 0)
+
+[node name="Aggro" type="Area3D" parent="Actor"]
+collision_layer = 0
+collision_mask = 2
+
+[node name="AggroRange" type="CollisionShape3D" parent="Actor/Aggro"]
+shape = SubResource("SphereShape3D_dbkhw")
 
 [node name="TestPlatform" type="StaticBody3D" parent="."]
 

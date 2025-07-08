@@ -38,7 +38,7 @@ enum NavBehavior {
 ## The amount of time (in seconds) the [param nav_timer] will be set to. This effects how long the Actor waits
 ## until choosing a new spot to wander to when [param NavBehavior.WANDERING], or how long the Actor 
 ## waits until moving to the next patrol point when [param NavBehavior.PATROLLING].
-@export_range(5.0, 60.0) var nav_time : float = 20.0
+@export_range(1.0, 60.0) var nav_time : float = 5.0
 
 ## The movement speed of the Actor.
 @export var movement_speed : float = 2.0
@@ -75,10 +75,15 @@ var patrol_index : int = 0
 
 ## The circular range in which a wandering point can be defined for the Actor during its
 ## [param NavBehavior.WANDERING] Nav Behavior.
-@export var wander_range : float = 5
+@export var wander_range : float = 15.0
 
 #---------------------------------------------------------------------------------------------------
 @export_group("Pursuit")
+
+## A [CollisionObject3D] that respresents the "aggro range" of the Actor. When a valid target enters
+## the [param aggro_area], the Actor will begin to pursue it. If the Actor is not meant to pursue
+## anything, then this value can be left null.
+@export var aggro_area : CollisionObject3D
 
 ## When a valid target falls into the aggro range of the Actor, it will tag that entity and use its
 ## location to pursue it. The variable also determines if the actor is in pursuit mode or not, as
@@ -87,11 +92,11 @@ var pursuit_entity : Node3D
 
 ## The distance the Actor will stay in from the target position. If the target comes closer than the
 ## engage distance, the Actor will back away to the intended distance. If
-@export var engage_distance : float = 3.0
+@export var engage_distance : float = 4.0
 
 ## The max distance the Actor can be from the [oaram pursuit_entity]. If the pursuit entity leaves
 ## this range, the Actor returns to normal behavior.
-@export var pursuit_distance : float = 20.0
+@export var pursuit_distance : float = 10.0
 
 #---------------------------------------------------------------------------------------------------
 
@@ -106,7 +111,9 @@ func set_target_position(target_pos : Vector3):
 	nav_agent.target_position = target_pos
 
 ## Activates the pursuit mode for the Actor. The Actor will continue to move towards the 
-## [param pursuit_entity]'s position until they are a specified distance away from their original point.
+## [param pursuit_entity]'s position until the target is at the specified [param engage_distance].
+## To function, it is best to have a [CollisionShape3D] to call the function when a valid target enters
+## it.
 func pursue(target : Node3D):
 	# If it is not already pursuing something else, then it will save where it was originally going
 	# so that it can return there when the pursuit is over.
@@ -116,7 +123,6 @@ func pursue(target : Node3D):
 	pursuit_entity = target
 	nav_timer.paused = true
 
-##
 func actor_setup():
 	await get_tree().physics_frame
 
@@ -132,6 +138,10 @@ func _ready():
 	nav_timer.wait_time = nav_time
 	nav_timer.one_shot = true
 	
+	# Connect the aggro area (if it exists).
+	if aggro_area != null:
+		aggro_area.body_entered.connect(_aggro_entered)
+	
 	# Wait for the physics frame in the scene to be initialized.
 	actor_setup.call_deferred()
 	
@@ -143,7 +153,7 @@ func _ready():
 			anchor_point.y, anchor_point.z + randf_range(-wander_range, wander_range))) )
 			nav_timer.start()
 		NavBehavior.PATROLLING:
-			set_target_position(patrol_route[randi_range(0, patrol_route.size()) if random_start_index else 0])
+			set_target_position(patrol_route[randi_range(0, patrol_route.size() - 1) if random_start_index else 0])
 	print(nav_agent.target_position)
 
 ## Called every frame. 'delta' is the elapsed time since the previous frame.
@@ -165,13 +175,15 @@ func behavior_calculation():
 			pursuit_entity = null
 			nav_timer.paused = false
 			set_target_position(base_movement_goal)
-		# If pursuit_entity is not withing the engage_distance, it will attempt to move closer or 
+		# If pursuit_entity is not within the engage_distance, it will attempt to move closer or 
 		# farther away.
-		elif engage_distance - .25 > global_position.distance_to(pursuit_entity.global_position):
-			( set_target_position(global_position.direction_to(pursuit_entity.global_position)
-			* -(engage_distance - global_position.distance_to(pursuit_entity.global_position))) )
-		elif global_position.distance_to(pursuit_entity.global_position) > engage_distance + .25:
+		elif engage_distance > global_position.distance_to(pursuit_entity.global_position):
+			( set_target_position(global_position + ( global_position.direction_to(pursuit_entity.global_position).normalized()
+			* -(global_position.distance_to(pursuit_entity.global_position))) ) )
+		elif global_position.distance_to(pursuit_entity.global_position) > engage_distance + .1:
 			set_target_position(pursuit_entity.global_position)
+		else:
+			set_target_position(global_position)
 	else:
 		pass
 		# Any special fram-by-frame behavior will be here.
@@ -219,7 +231,7 @@ func _on_navigation_agent_3d_target_reached():
 		nav_timer.start()
 	pass # Replace with function body.
 
-## Triggers when the [param nav_timer] is timed out.
+## Triggers when the [param nav_timer] is timed out. 
 func _nav_timer_timeout():
 	print("timeout")
 	if nav_behavior == NavBehavior.WANDERING:
@@ -229,3 +241,8 @@ func _nav_timer_timeout():
 	elif nav_behavior == NavBehavior.PATROLLING:
 		patrol_index = (patrol_index + 1) % patrol_route.size()
 		set_target_position(patrol_route[patrol_index])
+
+## Triggers when a connected body or [Area3D] detects a valid target. When triggered, it activates
+## pursuit mode.
+func _aggro_entered(body : Node3D):
+	pursue(body)
